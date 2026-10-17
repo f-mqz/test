@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17133A">
+<meta name="description" content="GameTok : scrolle, joue, publie tes mini-jeux.">
+<title>GameTok</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--night:#17133A;--grape:#2A1F6B;--pink:#FF4D8D;--sun:#FFD23F;--milk:#F7F3FF}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{display:grid;place-items:center;color:var(--milk);font-family:'Outfit',system-ui,sans-serif;-webkit-tap-highlight-color:transparent;
+ background:radial-gradient(circle at 15% 10%,#4b2fb5 0,transparent 40%),radial-gradient(circle at 88% 92%,#b8236a 0,transparent 35%),var(--grape)}
+#app{position:relative;width:100%;height:100vh;height:100dvh;background:var(--night);overflow:hidden}
+@media(min-width:600px){#app{width:420px;height:min(100dvh - 32px,860px);border-radius:32px;border:4px solid var(--milk);box-shadow:0 10px 0 var(--pink)}}
+
+/* Feed */
+#feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;overscroll-behavior:contain;scrollbar-width:none}
+#feed::-webkit-scrollbar{display:none}
+.post{position:relative;height:100%;scroll-snap-align:start;scroll-snap-stop:always;background:var(--night);overflow:hidden}
+.stage{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--night);pointer-events:none}
+.playing .stage{pointer-events:auto}
+.post::after{content:"";position:absolute;left:0;right:0;bottom:0;height:50%;background:linear-gradient(transparent,rgba(23,19,58,.95));pointer-events:none}
+.playing::after,.playing .info,.playing .rail,.playing .play{display:none}
+.post.wait::before,.post.fail::before{position:absolute;z-index:1;left:50%;top:42%;transform:translate(-50%,-50%);font-weight:800;opacity:.75;text-align:center;width:80%}
+.post.wait::before{content:"Chargement…"}
+.post.fail::before{content:"Impossible de charger ce jeu."}
+.wait .play,.fail .play{display:none}
+.info{position:absolute;z-index:2;left:16px;right:84px;bottom:calc(86px + env(safe-area-inset-bottom))}
+.by{font-weight:800;color:var(--sun);font-size:15px}
+.info h2{font-family:'Bungee',Impact,sans-serif;font-weight:400;font-size:26px;line-height:1.1;margin:4px 0 6px;text-shadow:2px 2px 0 var(--pink);overflow-wrap:anywhere}
+.info p{font-size:14px;line-height:1.4;opacity:.9;max-width:34ch;overflow-wrap:anywhere}
+.rail{position:absolute;z-index:2;right:12px;bottom:calc(96px + env(safe-area-inset-bottom));display:grid;gap:12px;justify-items:center}
+.rb{width:56px;height:56px;border-radius:50%;border:2px solid rgba(247,243,255,.5);background:rgba(23,19,58,.6);color:var(--milk);display:grid;place-items:center;align-content:center;cursor:pointer;font:700 12px 'Outfit',sans-serif}
+.rb.sm{width:44px;height:44px}
+.rb.on{color:var(--sun);border-color:var(--sun)}
+.rb.on svg{fill:var(--sun)}
+.play{position:absolute;z-index:2;left:50%;top:42%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:10px;font:800 20px 'Outfit',sans-serif;background:var(--sun);color:var(--night);border:3px solid var(--milk);border-radius:999px;padding:14px 28px;box-shadow:0 5px 0 var(--pink);cursor:pointer}
+.play:active{transform:translate(-50%,calc(-50% + 4px));box-shadow:0 1px 0 var(--pink)}
+.quit{display:none;position:absolute;z-index:3;top:calc(12px + env(safe-area-inset-top));right:12px;width:44px;height:44px;place-items:center;border-radius:50%;border:3px solid var(--milk);background:var(--pink);color:#fff;cursor:pointer}
+.playing .quit{display:grid}
+.empty{display:grid;place-content:center;justify-items:center;gap:12px;text-align:center;padding:0 32px}
+.empty::after{display:none}
+.empty h2{font-family:'Bungee',Impact,sans-serif;font-weight:400;font-size:24px;text-shadow:2px 2px 0 var(--pink)}
+.empty p{opacity:.85;line-height:1.45;max-width:30ch}
+.empty .btn{width:auto;margin-top:6px;padding:13px 28px}
+
+/* Header + nav */
+header{position:absolute;z-index:5;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(12px + env(safe-area-inset-top)) 14px 0;pointer-events:none}
+header>*{pointer-events:auto}
+.logo{font-family:'Bungee',Impact,sans-serif;font-size:26px;color:var(--sun);text-shadow:3px 3px 0 var(--pink)}
+.pill{display:flex;align-items:center;gap:6px;font:800 14px 'Outfit',sans-serif;color:var(--milk);background:rgba(23,19,58,.7);border:2px solid var(--milk);border-radius:999px;padding:7px 14px;cursor:pointer;max-width:50%}
+.pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav{position:absolute;z-index:5;left:0;right:0;bottom:0;display:flex;justify-content:space-around;align-items:center;padding:10px 8px calc(10px + env(safe-area-inset-bottom));background:var(--night);border-top:3px solid var(--grape)}
+nav button{background:none;border:0;color:var(--milk);font:600 12px 'Outfit',sans-serif;display:grid;justify-items:center;gap:3px;min-width:62px;opacity:.75;cursor:pointer}
+nav button.on{opacity:1;color:var(--sun)}
+nav .add{opacity:1;width:62px;height:42px;border-radius:14px;background:var(--sun);color:var(--night);border:3px solid var(--milk);box-shadow:0 4px 0 var(--pink);align-content:center}
+nav .add:active{transform:translateY(3px);box-shadow:0 1px 0 var(--pink)}
+.inplay header,.inplay nav{display:none}
+
+/* Dialogs & forms */
+dialog{margin:auto;width:min(92vw,400px);max-height:88dvh;overflow:auto;padding:22px;color:var(--milk);background:var(--night);border:3px solid var(--milk);border-radius:24px;box-shadow:0 8px 0 var(--pink)}
+dialog::backdrop{background:rgba(10,7,30,.75);backdrop-filter:blur(4px)}
+dialog h3{font-family:'Bungee',Impact,sans-serif;font-weight:400;font-size:22px;margin-bottom:4px}
+.x{float:right;background:none;border:0;color:var(--milk);cursor:pointer;padding:2px}
+label{display:grid;gap:6px;margin-top:14px;font-weight:600;font-size:14px}
+input,textarea,select{font:16px 'Outfit',sans-serif;color:var(--milk);background:var(--grape);border:2px solid transparent;border-radius:14px;padding:12px 14px;width:100%}
+textarea{resize:vertical;min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px}
+input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.btn{display:block;width:100%;margin-top:18px;font:800 17px 'Outfit',sans-serif;color:#fff;background:var(--pink);border:3px solid var(--milk);border-radius:999px;padding:13px 20px;box-shadow:0 4px 0 var(--milk);cursor:pointer}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--milk)}
+.btn:disabled{opacity:.6;cursor:wait}
+.btn.alt{background:transparent}
+.link{background:none;border:0;color:var(--sun);font:600 14px 'Outfit',sans-serif;text-decoration:underline;cursor:pointer;margin-top:12px;padding:0}
+.tabs{display:flex;gap:8px;margin:14px 0 4px}
+.tabs button{flex:1;font:800 15px 'Outfit',sans-serif;padding:10px;border-radius:999px;border:2px solid var(--grape);background:var(--grape);color:var(--milk);cursor:pointer}
+.tabs button.on{background:var(--sun);color:var(--night);border-color:var(--sun)}
+.err{min-height:1.3em;margin-top:10px;font-size:14px;color:#ff9db9}
+.muted{font-size:13px;opacity:.75;margin-top:12px;line-height:1.4}
+.mine{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;padding:10px 12px;background:var(--grape);border-radius:12px;font-weight:600}
+.mine .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acts{display:flex;gap:6px}
+.mini{font:700 13px 'Outfit',sans-serif;color:var(--night);background:var(--sun);border:0;border-radius:999px;padding:6px 12px;cursor:pointer}
+.mini.del{background:transparent;color:var(--pink);box-shadow:inset 0 0 0 2px var(--pink)}
+[hidden]{display:none!important}
+#toast{position:absolute;z-index:30;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:88%;background:var(--sun);color:var(--night);font-weight:800;padding:10px 18px;border-radius:999px;border:3px solid var(--milk);box-shadow:0 4px 0 var(--pink);text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">GameTok</div>
+    <button class="pill" id="who" type="button"></button>
+  </header>
+  <main id="feed" aria-label="Fil de jeux"></main>
+  <nav>
+    <button type="button" id="nHome" class="on" aria-label="Accueil"></button>
+    <button type="button" id="nFav" aria-label="Mes favoris"></button>
+    <button type="button" id="nAdd" class="add" aria-label="Publier un jeu"></button>
+    <button type="button" id="nMe" aria-label="Profil"></button>
+  </nav>
+  <div id="toast" hidden role="status"></div>
+</div>
+
+<dialog id="dAuth">
+  <button class="x" data-close aria-label="Fermer" id="xAuth"></button>
+  <h3>Bienvenue</h3>
+  <p class="muted" id="authMsg" style="margin-top:4px"></p>
+  <div class="tabs">
+    <button type="button" id="tLogin" class="on">Connexion</button>
+    <button type="button" id="tSignup">Inscription</button>
+  </div>
+  <form id="fLogin" autocomplete="on">
+    <label>Adresse email<input id="lMail" type="email" autocomplete="email" required></label>
+    <label>Mot de passe<input id="lPw" type="password" autocomplete="current-password" required></label>
+    <p class="err" id="errL" role="alert"></p>
+    <button class="btn" type="submit">Se connecter</button>
+    <button class="link" type="button" id="bForgot">Mot de passe oublié ?</button>
+  </form>
+  <form id="fSignup" autocomplete="on" hidden>
+    <label>Pseudo<input id="sPseudo" autocomplete="username" maxlength="20" required></label>
+    <label>Adresse email<input id="sMail" type="email" autocomplete="email" required></label>
+    <label>Mot de passe (8 caractères min.)<input id="sPw" type="password" autocomplete="new-password" minlength="8" required></label>
+    <p class="err" id="errS" role="alert"></p>
+    <button class="btn" type="submit">Créer mon compte</button>
+  </form>
+</dialog>
+
+<dialog id="dPost">
+  <button class="x" data-close aria-label="Fermer" id="xPost"></button>
+  <h3 id="postH">Publier un jeu</h3>
+  <form id="fPost">
+    <label>Titre<input id="pTitle" maxlength="40" required></label>
+    <label>Description<input id="pDesc" maxlength="120"></label>
+    <label>Comment ajouter ton jeu ?
+      <select id="pKind"><option value="html">Coller le code HTML</option><option value="url">Lien https</option></select>
+    </label>
+    <label id="wCode">Code (un seul fichier HTML, CSS et JS inclus)<textarea id="pCode" spellcheck="false" placeholder="<!doctype html>…"></textarea></label>
+    <label id="wUrl" hidden>Lien du jeu<input id="pUrl" type="url" placeholder="https://…"></label>
+    <p class="muted" id="hintUrl" hidden>Certains sites interdisent l’intégration dans une autre page. Si ton jeu reste vide, colle plutôt son code.</p>
+    <p class="err" id="errP" role="alert"></p>
+    <button class="btn" type="submit" id="bPost">Publier</button>
+  </form>
+</dialog>
+
+<dialog id="dProfile">
+  <button class="x" data-close aria-label="Fermer" id="xProf"></button>
+  <h3 id="pName"></h3>
+  <p class="muted" id="pMail" style="margin-top:2px"></p>
+  <label style="margin-top:20px">Mes jeux</label>
+  <div id="mine"></div>
+  <button class="btn alt" id="bOut" type="button">Se déconnecter</button>
+</dialog>
+
+<dialog id="dReset">
+  <h3>Nouveau mot de passe</h3>
+  <form id="fReset">
+    <label>Mot de passe (8 caractères min.)<input id="rPw" type="password" autocomplete="new-password" minlength="8" required></label>
+    <p class="err" id="errR" role="alert"></p>
+    <button class="btn" type="submit">Enregistrer</button>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script>
+"use strict";
+
+/* ================= À REMPLIR (Supabase → Project Settings) ================= */
+const SUPABASE_URL='https://vxlbevzqokootcqrojfs.supabase.co';
+const SUPABASE_KEY='sb_publishable_5fNrOMQD82f6qpJoDtO4rg_uvEQVIGO';   // clé « Publishable » (sb_publishable_…), jamais la clé secrète
+/* =========================================================================== */
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const svg=(p,fill,sz)=>`<svg viewBox="0 0 24 24" width="${sz||26}" height="${sz||26}" fill="${fill?'currentColor':'none'}" stroke="${fill?'none':'currentColor'}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I={
+  star:svg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
+  play:svg('<path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"/>',1),
+  x:svg('<path d="M5 5l14 14M19 5L5 19"/>'),
+  plus:svg('<path d="M12 5v14M5 12h14"/>'),
+  home:svg('<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'),
+  user:svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/>'),
+  edit:svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>',0,22),
+  trash:svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',0,22)
+};
+
+/* ---------- Supabase ---------- */
+const CONFIGURED=!SUPABASE_URL.includes('TON-PROJET')&&!SUPABASE_KEY.startsWith('TA-');
+const sb=(CONFIGURED&&window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
+
+/* ---------- État ---------- */
+const PAGE=10;
+const SEL='id,user_id,title,description,kind,created_at,fav_count,profiles(pseudo)';
+const BASE_SB='allow-scripts allow-pointer-lock';
+const feed=$('#feed');
+let me=null,mode='all',favs=new Set(),loaded=0,ended=false,busy=false,tok=0,editId=null;
+const cache=new Map();
+
+const norm=r=>({id:r.id,user_id:r.user_id,title:r.title,description:r.description||'',kind:r.kind,fav_count:r.fav_count||0,author:(r.profiles&&r.profiles.pseudo)||'joueur'});
+function guard(){if(sb)return false;toast('Supabase n’est pas configuré.');return true}
+
+let tt;
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2800)}
+function openD(d){if(!d.open)d.showModal()}
+
+/* ---------- Données ---------- */
+async function fetchPage(from){
+  if(mode==='favs'){
+    const {data,error}=await sb.from('favorites').select(`created_at,games(${SEL})`).order('created_at',{ascending:false}).range(from,from+PAGE-1);
+    if(error)throw error;
+    return {n:data.length,rows:data.map(r=>r.games).filter(Boolean).map(norm)};
+  }
+  const {data,error}=await sb.from('games').select(SEL).order('created_at',{ascending:false}).range(from,from+PAGE-1);
+  if(error)throw error;
+  return {n:data.length,rows:data.map(norm)};
+}
+async function getContent(id,fresh){
+  if(!fresh&&cache.has(id))return cache.get(id);
+  const {data,error}=await sb.from('games').select('title,description,kind,content').eq('id',id).single();
+  if(error)throw error;
+  cache.set(id,data);
+  if(cache.size>6)cache.delete(cache.keys().next().value);
+  return data;
+}
+async function loadFavs(){
+  favs=new Set();
+  if(!sb||!me)return;
+  const {data}=await sb.from('favorites').select('game_id');
+  (data||[]).forEach(r=>favs.add(r.game_id));
+}
+
+/* ---------- Feed ---------- */
+const io=new IntersectionObserver(es=>es.forEach(e=>{
+  const el=e.target,fr=el.querySelector('iframe');
+  if(e.isIntersecting){
+    if(el._on)return;
+    el._on=1;ensureLoaded(el);maybeMore(el);
+  }else if(el._on){
+    el._on=0;stopPlay(el);fr.removeAttribute('src');fr.srcdoc='';
+  }
+}),{root:feed,threshold:.6});
+
+function sandboxFor(url){
+  try{if(new URL(url).origin!==location.origin)return BASE_SB+' allow-same-origin allow-popups'}catch(e){}
+  return BASE_SB;
+}
+async function ensureLoaded(el){
+  const p=el._p,fr=el.querySelector('iframe');
+  el.classList.remove('fail');el.classList.add('wait');
+  try{
+    const g=await getContent(p.id);
+    if(!el._on)return;
+    if(g.kind==='url'){fr.setAttribute('sandbox',sandboxFor(g.content));fr.removeAttribute('srcdoc');fr.src=g.content}
+    else{fr.setAttribute('sandbox',BASE_SB);fr.removeAttribute('src');fr.srcdoc=g.content}
+  }catch(e){if(el._on)el.classList.add('fail')}
+  finally{el.classList.remove('wait')}
+}
+function maybeMore(el){if(!ended&&el._i>=loaded-3)loadMore()}
+async function loadMore(){
+  if(busy||ended)return;
+  busy=true;const t=tok;
+  try{
+    const {n,rows}=await fetchPage(loaded);
+    if(t!==tok)return;
+    loaded+=n;ended=n<PAGE;rows.forEach(addCard);
+  }catch(e){}
+  finally{busy=false}
+}
+
+function card(p){
+  const el=document.createElement('section');
+  el.className='post';el.dataset.id=p.id;el._p=p;
+  el.innerHTML=`<iframe class="stage" title="${esc(p.title)}" sandbox="${BASE_SB}"></iframe>
+    <button class="play" type="button">${I.play}Jouer</button>
+    <button class="quit" type="button" aria-label="Quitter la partie">${I.x}</button>
+    <div class="rail">
+      <button class="rb fav" type="button">${I.star}<b>0</b></button>
+      <button class="rb sm own ed" type="button" aria-label="Modifier ce jeu" hidden>${I.edit}</button>
+      <button class="rb sm own rm" type="button" aria-label="Supprimer ce jeu" hidden>${I.trash}</button>
+    </div>
+    <div class="info"><div class="by">@${esc(p.author)}</div><h2>${esc(p.title)}</h2><p>${esc(p.description)}</p></div>`;
+  el.querySelector('.play').onclick=()=>startPlay(el);
+  el.querySelector('.quit').onclick=()=>stopPlay(el);
+  el.querySelector('.fav').onclick=()=>toggleFav(p);
+  el.querySelector('.ed').onclick=()=>startEdit(p.id);
+  el.querySelector('.rm').onclick=()=>delGame(p.id);
+  el.addEventListener('click',e=>{if(!e.target.closest('button')&&!el.classList.contains('playing')&&!el.classList.contains('fail'))startPlay(el)});
+  return el;
+}
+function addCard(p){
+  const el=card(p);el._i=feed.querySelectorAll('.post[data-id]').length;
+  feed.appendChild(el);io.observe(el);refreshCard(el);
+}
+function refreshCard(el){
+  const p=el._p,b=el.querySelector('.fav'),on=favs.has(p.id);
+  b.classList.toggle('on',on);
+  b.setAttribute('aria-label',on?'Retirer des favoris':'Ajouter aux favoris');
+  b.querySelector('b').textContent=p.fav_count;
+  const own=!!(me&&me.id===p.user_id);
+  el.querySelectorAll('.own').forEach(x=>x.hidden=!own);
+}
+const refreshCards=()=>document.querySelectorAll('.post[data-id]').forEach(refreshCard);
+
+function emptyCard(h,t,label,fn){
+  const el=document.createElement('section');el.className='post empty';
+  el.innerHTML='<h2></h2><p></p>';
+  el.querySelector('h2').textContent=h;el.querySelector('p').textContent=t||'';
+  if(label){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.onclick=fn;el.appendChild(b)}
+  return el;
+}
+function resetPlayUI(){feed.style.overflowY='';document.body.classList.remove('inplay')}
+async function loadFeed(){
+  const t=++tok;
+  io.disconnect();feed.innerHTML='';resetPlayUI();loaded=0;ended=false;busy=false;
+  if(!sb){
+    feed.appendChild(CONFIGURED
+      ?emptyCard('Connexion impossible','Le service Supabase n’a pas pu être chargé. Vérifie ta connexion.')
+      :emptyCard('Il manque Supabase','Ouvre index.html et colle l’URL et la clé publishable de ton projet tout en haut du fichier.'));
+    return;
+  }
+  feed.appendChild(emptyCard('Chargement…',''));
+  try{
+    const {n,rows}=await fetchPage(0);
+    if(t!==tok)return;
+    feed.innerHTML='';loaded=n;ended=n<PAGE;
+    if(!rows.length){
+      feed.appendChild(mode==='favs'
+        ?emptyCard('Aucun favori','Touche l’étoile sur un jeu pour le retrouver ici.','Voir les jeux',()=>setMode('all'))
+        :emptyCard('Aucun jeu pour l’instant','Sois le premier à publier le tien !','Publier un jeu',openPost));
+      return;
+    }
+    rows.forEach(addCard);
+  }catch(e){
+    if(t!==tok)return;
+    feed.innerHTML='';
+    feed.appendChild(emptyCard('Oups','Impossible de charger les jeux. Vérifie ta connexion.','Réessayer',loadFeed));
+  }
+}
+function setMode(m){
+  if(guard())return;
+  if(m==='favs'&&!me)return openAuth('login','Connecte-toi pour voir tes favoris.');
+  mode=m;
+  $('#nHome').classList.toggle('on',m==='all');$('#nFav').classList.toggle('on',m==='favs');
+  loadFeed();
+}
+
+function startPlay(el){
+  el.classList.add('playing');feed.style.overflowY='hidden';document.body.classList.add('inplay');
+  el.querySelector('iframe').focus();
+}
+function stopPlay(el){
+  if(!el.classList.contains('playing'))return;
+  el.classList.remove('playing');resetPlayUI();
+}
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'){const p=document.querySelector('.post.playing');if(p)stopPlay(p);return}
+  if(e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;
+  if(document.querySelector('dialog[open]')||document.body.classList.contains('inplay'))return;
+  if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;
+  e.preventDefault();
+  feed.scrollBy({top:(e.key==='ArrowDown'?1:-1)*feed.clientHeight,behavior:'smooth'});
+});
+
+/* ---------- Favoris ---------- */
+async function toggleFav(p){
+  if(guard())return;
+  if(!me)return openAuth('login','Connecte-toi pour ajouter aux favoris.');
+  const was=favs.has(p.id);
+  const apply=on=>{if(on){favs.add(p.id);p.fav_count++}else{favs.delete(p.id);p.fav_count=Math.max(0,p.fav_count-1)}refreshCards()};
+  apply(!was);
+  const r=was
+    ?await sb.from('favorites').delete().eq('user_id',me.id).eq('game_id',p.id)
+    :await sb.from('favorites').insert({user_id:me.id,game_id:p.id});
+  if(r.error){apply(was);toast('Action impossible, réessaie.')}
+}
+
+/* ---------- Publier / modifier / supprimer ---------- */
+function syncKind(){
+  const h=$('#pKind').value==='html';
+  $('#wCode').hidden=!h;$('#wUrl').hidden=h;$('#hintUrl').hidden=h;
+}
+function openPost(){
+  if(guard())return;
+  if(!me)return openAuth('signup','Crée un compte pour publier ton jeu.');
+  editId=null;$('#fPost').reset();syncKind();
+  $('#postH').textContent='Publier un jeu';$('#bPost').textContent='Publier';$('#errP').textContent='';
+  openD($('#dPost'));
+}
+async function startEdit(id){
+  try{
+    const g=await getContent(id,true);
+    editId=id;
+    $('#pTitle').value=g.title;$('#pDesc').value=g.description||'';$('#pKind').value=g.kind;
+    $('#pCode').value=g.kind==='html'?g.content:'';$('#pUrl').value=g.kind==='url'?g.content:'';
+    syncKind();
+    $('#postH').textContent='Modifier ton jeu';$('#bPost').textContent='Enregistrer';$('#errP').textContent='';
+    $('#dProfile').close();openD($('#dPost'));
+  }catch(e){toast('Impossible de charger ce jeu.')}
+}
+async function delGame(id){
+  if(!confirm('Supprimer ce jeu pour de bon ?'))return;
+  const {data,error}=await sb.from('games').delete().eq('id',id).select('id');
+  if(error||!data||!data.length)return toast('Suppression impossible.');
+  cache.delete(id);favs.delete(id);
+  const el=feed.querySelector(`.post[data-id="${id}"]`);
+  if(el){io.unobserve(el);stopPlay(el);el.remove();if(!feed.querySelector('.post'))loadFeed()}
+  if($('#dProfile').open)renderMine();
+  toast('Jeu supprimé.');
+}
+$('#pKind').onchange=syncKind;
+$('#fPost').onsubmit=async e=>{
+  e.preventDefault();
+  const err=$('#errP');err.textContent='';
+  if(guard())return;
+  if(!me)return openAuth('login');
+  const title=$('#pTitle').value.trim(),description=$('#pDesc').value.trim(),kind=$('#pKind').value;
+  const content=(kind==='html'?$('#pCode').value:$('#pUrl').value).trim();
+  if(!title)return err.textContent='Donne un titre à ton jeu.';
+  if(kind==='html'&&(!content.includes('<')||content.length<20))return err.textContent='Colle le code HTML complet de ton jeu.';
+  if(kind==='html'&&content.length>500000)return err.textContent='Code trop lourd (500 000 caractères max).';
+  if(kind==='url'&&!/^https:\/\/\S+$/.test(content))return err.textContent='Le lien doit commencer par https://';
+  const btn=$('#bPost');btn.disabled=true;
+  try{
+    let error,wasEdit=!!editId;
+    if(wasEdit){
+      const r=await sb.from('games').update({title,description,kind,content}).eq('id',editId).select('id');
+      error=r.error;if(!error&&!(r.data&&r.data.length))error={message:'Modification refusée.'};
+      cache.delete(editId);
+    }else{
+      const r=await sb.from('games').insert({user_id:me.id,title,description,kind,content});
+      error=r.error;
+    }
+    if(error)throw error;
+    $('#dPost').close();editId=null;
+    toast(wasEdit?'Jeu modifié !':'Jeu publié !');
+    if(mode!=='all')setMode('all');else loadFeed();
+  }catch(x){
+    err.textContent=x&&x.code==='23514'?'Contenu refusé (trop long ou invalide).':((x&&x.message)||'Erreur, réessaie.');
+  }finally{btn.disabled=false}
+};
+
+/* ---------- Profil ---------- */
+async function renderMine(){
+  const l=$('#mine');
+  l.innerHTML='<p class="muted" style="margin-top:4px">Chargement…</p>';
+  const {data,error}=await sb.from('games').select('id,title,fav_count').eq('user_id',me.id).order('created_at',{ascending:false});
+  l.innerHTML='';
+  if(error){l.innerHTML='<p class="muted" style="margin-top:4px">Impossible de charger tes jeux.</p>';return}
+  if(!data.length){l.innerHTML='<p class="muted" style="margin-top:4px">Aucun jeu publié pour l’instant.</p>';return}
+  data.forEach(g=>{
+    const r=document.createElement('div');r.className='mine';
+    r.innerHTML='<span class="t"></span><span class="acts"><button class="mini ed" type="button">Modifier</button><button class="mini del" type="button">Supprimer</button></span>';
+    r.querySelector('.t').textContent=g.title+' · '+g.fav_count+' ★';
+    r.querySelector('.ed').onclick=()=>startEdit(g.id);
+    r.querySelector('.del').onclick=()=>delGame(g.id);
+    l.appendChild(r);
+  });
+}
+function openProfile(){
+  if(guard())return;
+  if(!me)return openAuth('login');
+  $('#pName').textContent='@'+me.pseudo;$('#pMail').textContent=me.email;
+  openD($('#dProfile'));renderMine();
+}
+$('#bOut').onclick=async()=>{await sb.auth.signOut();$('#dProfile').close();toast('Déconnecté.')};
+
+/* ---------- Comptes ---------- */
+const AUTH_ERR={
+  'Invalid login credentials':'Email ou mot de passe incorrect.',
+  'Email not confirmed':'Confirme d’abord ton email : regarde ta boîte mail.',
+  'User already registered':'Cet email a déjà un compte.'
+};
+function authMsg(e){
+  const m=(e&&e.message)||'';
+  for(const k in AUTH_ERR)if(m.includes(k))return AUTH_ERR[k];
+  if(/rate limit|too many/i.test(m))return 'Trop de tentatives, réessaie dans quelques minutes.';
+  if(/Database error/i.test(m))return 'Ce pseudo est déjà pris.';
+  return m||'Une erreur est survenue, réessaie.';
+}
+function setTab(m){
+  const login=m==='login';
+  $('#fLogin').hidden=!login;$('#fSignup').hidden=login;
+  $('#tLogin').classList.toggle('on',login);$('#tSignup').classList.toggle('on',!login);
+  $('#errL').textContent='';$('#errS').textContent='';
+}
+function openAuth(m,msg){
+  if(guard())return;
+  setTab(m||'login');$('#authMsg').textContent=msg||'';openD($('#dAuth'));
+}
+function renderTop(){
+  const w=$('#who');
+  if(me){w.innerHTML=I.user.replace(/26/g,'18')+'<span></span>';w.querySelector('span').textContent=me.pseudo}
+  else w.innerHTML='<span>Se connecter</span>';
+}
+
+$('#fSignup').onsubmit=async e=>{
+  e.preventDefault();
+  const err=$('#errS');err.textContent='';
+  const pseudo=$('#sPseudo').value.trim(),email=$('#sMail').value.trim(),pw=$('#sPw').value;
+  if(!/^[\w.-]{3,20}$/.test(pseudo))return err.textContent='Pseudo : 3 à 20 caractères (lettres, chiffres, _ . -).';
+  if(pw.length<8)return err.textContent='Mot de passe : 8 caractères minimum.';
+  const btn=e.target.querySelector('.btn');btn.disabled=true;
+  try{
+    const f=await sb.rpc('pseudo_available',{p:pseudo});
+    if(f.error)throw f.error;
+    if(!f.data)return err.textContent='Ce pseudo est déjà pris.';
+    const {data,error}=await sb.auth.signUp({email,password:pw,options:{data:{pseudo},emailRedirectTo:location.origin+location.pathname}});
+    if(error)throw error;
+    if(data.user&&data.user.identities&&data.user.identities.length===0)return err.textContent='Cet email a déjà un compte.';
+    e.target.reset();
+    if(data.session){$('#dAuth').close();toast('Bienvenue @'+pseudo+' !')}
+    else{setTab('login');$('#authMsg').textContent='Compte créé ! Clique sur le lien reçu par email, puis connecte-toi.'}
+  }catch(x){err.textContent=authMsg(x)}
+  finally{btn.disabled=false}
+};
+$('#fLogin').onsubmit=async e=>{
+  e.preventDefault();
+  const err=$('#errL');err.textContent='';
+  const btn=e.target.querySelector('.btn');btn.disabled=true;
+  try{
+    const {error}=await sb.auth.signInWithPassword({email:$('#lMail').value.trim(),password:$('#lPw').value});
+    if(error)throw error;
+    $('#dAuth').close();e.target.reset();toast('Content de te revoir !');
+  }catch(x){err.textContent=authMsg(x)}
+  finally{btn.disabled=false}
+};
+$('#bForgot').onclick=async()=>{
+  const err=$('#errL');err.textContent='';
+  const email=$('#lMail').value.trim();
+  if(!/^\S+@\S+\.\S+$/.test(email))return err.textContent='Entre d’abord ton email ci-dessus.';
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+  if(error)err.textContent=authMsg(error);else toast('Email envoyé si ce compte existe.');
+};
+$('#fReset').onsubmit=async e=>{
+  e.preventDefault();
+  const err=$('#errR');err.textContent='';
+  const {error}=await sb.auth.updateUser({password:$('#rPw').value});
+  if(error)return err.textContent=authMsg(error);
+  $('#dReset').close();e.target.reset();toast('Mot de passe modifié.');
+};
+
+if(sb){
+  sb.auth.onAuthStateChange((ev,session)=>{
+    const u=session&&session.user;
+    me=u?{id:u.id,email:u.email,pseudo:(u.user_metadata&&u.user_metadata.pseudo)||'joueur'}:null;
+    renderTop();
+    setTimeout(async()=>{
+      if(ev==='PASSWORD_RECOVERY')openD($('#dReset'));
+      await loadFavs();
+      if(!me&&mode==='favs')setMode('all');else refreshCards();
+    },0);
+  });
+}
+
+/* ---------- Navigation & démarrage ---------- */
+$('#nHome').innerHTML=I.home+'Accueil';
+$('#nFav').innerHTML=I.star+'Favoris';
+$('#nAdd').innerHTML=I.plus;
+$('#nMe').innerHTML=I.user+'Profil';
+['xAuth','xPost','xProf'].forEach(id=>$('#'+id).innerHTML=I.x);
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
+$('#nHome').onclick=()=>{if(mode!=='all')setMode('all');else feed.scrollTo({top:0,behavior:'smooth'})};
+$('#nFav').onclick=()=>setMode('favs');
+$('#nAdd').onclick=openPost;
+$('#nMe').onclick=openProfile;
+$('#who').onclick=()=>me?openProfile():openAuth('login');
+$('#tLogin').onclick=()=>setTab('login');
+$('#tSignup').onclick=()=>setTab('signup');
+
+renderTop();
+loadFeed();
+</script>
+</body>
+</html>
